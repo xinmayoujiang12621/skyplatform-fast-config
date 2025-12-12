@@ -1,0 +1,1 @@
+# 应用代码字典（状态码/业务码），用在中间件 HeaderJWTMiddleware 进行header校验
