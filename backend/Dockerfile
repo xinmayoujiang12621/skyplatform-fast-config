@@ -1,5 +1,9 @@
 # 第一阶段：依赖构建阶段
-FROM registry.cn-hangzhou.aliyuncs.com/dockerhub-mirror/python:3.12-slim AS dependencies
+FROM python:3.12-slim AS dependencies
+
+# （可选）国内环境添加阿里云 Docker Hub 加速源（在构建阶段配置）
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev
 
 # 设置环境变量
 ENV PYTHONDONTWRITEBYTECODE=1 \
