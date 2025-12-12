@@ -1,0 +1,10 @@
+# 当前版本号0.0.1
+
+# 打包镜像
+docker build --target production -t skyplatform-fast-config:prod .
+# 本地Docker运行
+docker run -d --name beifei -p 9230:9230 beifei:prod
+# 打标签
+docker tag beifei:prod crpi-pe3cq1cvarbuqi25.cn-beijing.personal.cr.aliyuncs.com/suikong/beifei:0.3.3
+# 推送镜像
+docker push crpi-pe3cq1cvarbuqi25.cn-beijing.personal.cr.aliyuncs.com/suikong/beifei:0.3.3

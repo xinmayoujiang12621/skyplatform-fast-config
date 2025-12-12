@@ -45,7 +45,7 @@ RUN groupadd -r appuser && useradd -r -g appuser -m appuser \
 USER appuser
 
 # 复制应用代码（放在最后以充分利用缓存）
-COPY --chown=appuser:appuser . .
+COPY --chown=appuser:appuser deploy .
 
 # 暴露端口
 EXPOSE 9530
