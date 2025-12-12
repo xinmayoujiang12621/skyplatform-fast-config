@@ -1,5 +1,5 @@
 # 第一阶段：依赖构建阶段
-FROM python:3.12-slim AS dependencies
+FROM registry.cn-hangzhou.aliyuncs.com/dockerhub-mirror/python:3.12-slim AS dependencies
 
 # 设置环境变量
 ENV PYTHONDONTWRITEBYTECODE=1 \
