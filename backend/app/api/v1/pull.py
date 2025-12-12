@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.v1.configs import Config
 from app.models.v1.services import Service
-from app.utils.jwt_verify import verify_bearer
+from app.utils.jwt_utils import verify_bearer
 from fastapi.responses import Response, JSONResponse
 from app.schemas.response import ok, unauthorized, not_found, internal_error, bad_request
 import json
