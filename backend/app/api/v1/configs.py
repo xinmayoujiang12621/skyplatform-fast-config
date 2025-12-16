@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.v1.configs import Config, ConfigVersion
-from app.models.v1.services import Service
-from app.schemas.v1.configs import ConfigCreate, ConfigUpdate, ConfigOut, ConfigVersionOut, RollbackReq
+from database import get_db
+from models.v1.configs import Config, ConfigVersion
+from models.v1.services import Service
+from schemas.v1.configs import ConfigCreate, ConfigUpdate, ConfigOut, ConfigVersionOut, RollbackReq
 import difflib
 import json
 

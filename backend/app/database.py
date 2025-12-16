@@ -1,7 +1,7 @@
 # 数据库连接
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from app.config import build_db_url
+from config import build_db_url
 
 DB_URL = build_db_url()
 if not DB_URL:

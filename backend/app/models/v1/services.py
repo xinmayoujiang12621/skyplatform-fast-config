@@ -2,7 +2,7 @@ from sqlalchemy import Column, BigInteger, String, Text, Enum, TIMESTAMP, Foreig
 from sqlalchemy.dialects.mysql import VARBINARY
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from app.database import Base
+from database import Base
 
 
 class Service(Base):

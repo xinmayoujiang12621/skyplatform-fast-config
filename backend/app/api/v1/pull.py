@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.v1.configs import Config
-from app.models.v1.services import Service
-from app.utils.jwt_utils import verify_bearer
+from database import get_db
+from models.v1.configs import Config
+from models.v1.services import Service
+from utils.jwt_utils import verify_bearer
 from fastapi.responses import Response, JSONResponse
-from app.schemas.response import ok, unauthorized, not_found, internal_error, bad_request
+from schemas.response import ok, unauthorized, not_found, internal_error, bad_request
 import json
 
 router = APIRouter(prefix="/api/v1/pull", tags=["pull"])

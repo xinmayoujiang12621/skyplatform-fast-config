@@ -3,11 +3,11 @@ import uvicorn
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from app.schemas.response import fail
-from app.middleware.cors import register_cors
-from app.api.v1.services import router as services_router
-from app.api.v1.configs import router as configs_router
-from app.api.v1.pull import router as pull_router
+from schemas.response import fail
+from middleware.cors import register_cors
+from api.v1.services import router as services_router
+from api.v1.configs import router as configs_router
+from api.v1.pull import router as pull_router
 
 app = FastAPI()
 

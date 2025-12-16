@@ -1,7 +1,7 @@
 import base64
 import os
 from cryptography.fernet import Fernet
-from app.config import CRED_MASTER_KEY
+from config import CRED_MASTER_KEY
 
 
 def _get_fernet():
