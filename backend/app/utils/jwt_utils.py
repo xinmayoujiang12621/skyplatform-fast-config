@@ -1,9 +1,9 @@
 import jwt
 from fastapi import HTTPException, status
-from app.models.v1.services import Service, ServiceCredential, ServiceToken
+from models.v1.services import Service, ServiceCredential, ServiceToken
 from sqlalchemy.orm import Session
-from app.utils.crypto import decrypt_sk
-from app.config import JWT_CLOCK_SKEW
+from utils.crypto import decrypt_sk
+from config import JWT_CLOCK_SKEW
 
 
 def verify_bearer(token: str, db: Session, service_code: str, env: str):
