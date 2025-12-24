@@ -17,6 +17,10 @@ ENV PYTHONPATH=/app \
     LOG_DIR=/tmp/logs \
     LOG_TO_FILE=0
 
+# 设置工作目录并复制应用代码
+WORKDIR /app
+COPY . /app
+
 # 暴露端口
 EXPOSE 9530
 

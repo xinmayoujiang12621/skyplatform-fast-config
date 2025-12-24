@@ -1,8 +1,12 @@
 # FastAPI应用入口
+from datetime import datetime
+
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+
+from config import SERVICE_VERSION
 from schemas.response import fail
 from middleware.cors import register_cors
 from middleware.admin_auth import register_admin_auth
@@ -38,6 +42,21 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content=fail(message="internal server error", code=500))
+
+
+@app.get("/api/health")
+async def health_check():
+    """健康检查接口"""
+
+    return JSONResponse(
+        content={
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "service": "agenterra-local-app-backend-v1",
+            "version": SERVICE_VERSION
+        },
+        status_code=200
+    )
 
 
 if __name__ == "__main__":

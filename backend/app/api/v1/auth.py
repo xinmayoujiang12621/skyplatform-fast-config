@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
 import jwt
-from config import ADMIN_JWT_SECRET, ADMIN_USERNAME
+from config import ADMIN_JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -16,7 +16,7 @@ class TokenResp(BaseModel):
 
 @router.post("/login", response_model=TokenResp)
 def login(payload: LoginReq):
-    if payload.username != ADMIN_USERNAME or payload.password != "":
+    if payload.username != ADMIN_USERNAME or payload.password != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="invalid credentials")
     if not ADMIN_JWT_SECRET:
         raise HTTPException(status_code=500, detail="admin jwt secret not configured")
