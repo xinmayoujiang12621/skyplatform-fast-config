@@ -3,13 +3,13 @@ import uvicorn
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from app.schemas.response import fail
-from app.middleware.cors import register_cors
-from app.middleware.admin_auth import register_admin_auth
-from app.api.v1.services import router as services_router
-from app.api.v1.configs import router as configs_router
-from app.api.v1.pull import router as pull_router
-from app.api.v1.auth import router as auth_router
+from schemas.response import fail
+from middleware.cors import register_cors
+from middleware.admin_auth import register_admin_auth
+from api.v1.services import router as services_router
+from api.v1.configs import router as configs_router
+from api.v1.pull import router as pull_router
+from api.v1.auth import router as auth_router
 
 app = FastAPI()
 
@@ -41,4 +41,4 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=9530, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=9530, reload=True)

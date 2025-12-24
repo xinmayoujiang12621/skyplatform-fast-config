@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, Header, Request, HTTPException
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.middleware.logging import get_logger
-from app.models.v1.configs import Config
-from app.models.v1.services import Service, ServiceIpAllow
-from app.utils.jwt_utils import verify_bearer
-from app.utils.ip_allow import extract_client_ip, is_ip_allowed
+from database import get_db
+from middleware.logging import get_logger
+from models.v1.configs import Config
+from models.v1.services import Service, ServiceIpAllow
+from utils.jwt_utils import verify_bearer
+from utils.ip_allow import extract_client_ip, is_ip_allowed
 from fastapi.responses import Response, JSONResponse
-from app.schemas.response import ok, unauthorized, not_found, internal_error, bad_request
+from schemas.response import ok, unauthorized, not_found, internal_error, bad_request
 import json
 import ipaddress
 

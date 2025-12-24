@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.v1.services import Service, ServiceCredential, ServiceToken, ServiceIpAllow
-from app.schemas.v1.services import ServiceCreate, ServiceOut, CredentialOut, CredentialRotateOut, TokenResponse, \
+from database import get_db
+from models.v1.services import Service, ServiceCredential, ServiceToken, ServiceIpAllow
+from schemas.v1.services import ServiceCreate, ServiceOut, CredentialOut, CredentialRotateOut, TokenResponse, \
     ServiceTokenOut, AllowIPCreate, AllowIPOut
-from app.utils.crypto import gen_ak_sk, encrypt_sk, decrypt_sk
-from app.config import CRED_MASTER_KEY
+from utils.crypto import gen_ak_sk, encrypt_sk, decrypt_sk
+from config import CRED_MASTER_KEY
 import jwt
 from datetime import datetime, timedelta, timezone
 import ipaddress

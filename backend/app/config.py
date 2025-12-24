@@ -21,6 +21,8 @@ ADMIN_JWT_SECRET = os.getenv("ADMIN_JWT_SECRET")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 TRUSTED_PROXIES = [o.strip() for o in os.getenv("TRUSTED_PROXIES", "").split(",") if o.strip()]
 REAL_IP_HEADER = os.getenv("REAL_IP_HEADER", "")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
 
 def build_db_url():
