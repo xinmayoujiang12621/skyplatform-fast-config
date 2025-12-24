@@ -10,41 +10,92 @@
 #    echo "用法: $0 <版本号>"
 #    exit 1
 #fi
-# 自定义变量，需要修改
-BASE_IMAGE_NAMESPACE="skyplatform"
-BASE_IMAGE_REPOSITORY="skyplatform-fast-config"
-PRODUCTION_PORT=9530
-ENV_FLAG=1
 
 # 获取版本号参数
 VERSION=$SPUG_RELEASE
-if [ -z "$VERSION" ]; then
-  echo "错误: 未提供 SPUG_RELEASE 环境变量"
+
+# ==============================================
+# 0. 更新 .env 文件中的 SERVICE_VERSION
+# ==============================================
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)  # 脚本绝对路径
+ENV_FILE="/tmp/.env"
+
+echo "使用环境配置文件: ${ENV_FILE}"
+
+# 检查 .env 是否存在
+if [ ! -f "${ENV_FILE}" ]; then
+  echo "错误：环境配置文件 ${ENV_FILE} 不存在！" >&2
   exit 1
 fi
 
-BASE_IMAGE_PREFIX="crpi-pe3cq1cvarbuqi25.cn-beijing.personal.cr.aliyuncs.com"
-BASE_IMAGE_SUFFIX="/${BASE_IMAGE_NAMESPACE}/${BASE_IMAGE_REPOSITORY}"
-BASE_IMAGE_NAME="${BASE_IMAGE_PREFIX}${BASE_IMAGE_SUFFIX}"
-IMAGE_NAME="${BASE_IMAGE_NAME}:${VERSION}"
-TEMP_PORT=$((PRODUCTION_PORT+1))
-CONTAINER_NAME="${BASE_IMAGE_REPOSITORY}"
-TEMP_CONTAINER_NAME="${BASE_IMAGE_REPOSITORY}-temp"
-MAX_HEALTH_CHECK_ATTEMPTS=30
-HEALTH_CHECK_INTERVAL=2
-SERVICE_VERSION="${VERSION}"
+echo "正在更新 SERVICE_VERSION 为: ${VERSION}"
 
+# 移除Windows风格的回车符
+sed -i 's/\r$//' "$ENV_FILE"
+sed -i '1 s/^\xEF\xBB\xBF//' "$ENV_FILE"
+
+# 检查是否存在 SERVICE_VERSION 行
+if grep -q "^SERVICE_VERSION=" "$ENV_FILE"; then
+    # 如果存在，则更新该行
+    sed -i "s/^SERVICE_VERSION=.*/SERVICE_VERSION=${VERSION}/" "$ENV_FILE"
+    echo "已更新 ${ENV_FILE} 中的 SERVICE_VERSION 为: ${VERSION}"
+else
+    # 如果不存在，则在文件末尾添加
+    echo "" >> "$ENV_FILE"
+    echo "SERVICE_VERSION=${VERSION}" >> "$ENV_FILE"
+    echo "已在 ${ENV_FILE} 中添加 SERVICE_VERSION: ${VERSION}"
+fi
+
+# ==============================================
+# 1. 定位并加载 .env 文件（纯 KEY=VALUE 格式，无 export）
+# ==============================================
+# 重新确认 .env 文件路径（已在上面设置过）
+# SCRIPT_DIR 和 ENV_FILE 变量已在上面定义
+# 加载 .env 文件到当前 Shell（无需 export，脚本内直接使用变量）
+# 使用 grep -v '^#' 过滤注释行，sed 's/^[ \t]*//;s/[ \t]*$//' 移除行首尾空格
+echo "加载环境配置：${ENV_FILE}"
+# 移除Windows风格的回车符
+sed -i 's/\r$//' "$ENV_FILE"
+sed -i '1 s/^\xEF\xBB\xBF//' "$ENV_FILE"
+while IFS= read -r line; do
+  # 跳过注释行（以 # 开头）和空行
+  case "$line" in
+    ''|*[[:space:]]*) [ -z "$(echo "$line" | sed 's/[[:space:]]//g')" ] && continue ;;
+    \#*) continue ;;
+  esac
+  # 执行行内容（核心：将 KEY=VALUE 赋值到当前 Shell）
+  eval "$line"
+done < "${ENV_FILE}"
+
+# 检查必需的环境变量是否存在
+required_vars="PRODUCTION_PORT TEMP_PORT CONTAINER_NAME TEMP_CONTAINER_NAME MAX_HEALTH_CHECK_ATTEMPTS HEALTH_CHECK_INTERVAL BASE_IMAGE_NAME"
+for var in $required_vars; do
+    eval "value=\$$var"
+    if [ -z "$value" ]; then
+        echo "错误: 环境变量 $var 未设置" >&2
+        exit 1
+    fi
+done
+
+# 配置变量（从环境变量读取）
+PRODUCTION_PORT=$PRODUCTION_PORT
+TEMP_PORT=$TEMP_PORT
+CONTAINER_NAME=$CONTAINER_NAME
+TEMP_CONTAINER_NAME=$TEMP_CONTAINER_NAME
+MAX_HEALTH_CHECK_ATTEMPTS=$MAX_HEALTH_CHECK_ATTEMPTS
+HEALTH_CHECK_INTERVAL=$HEALTH_CHECK_INTERVAL
 HEALTH_CHECK_URL="http://localhost:${TEMP_PORT}/api/health"
 
-ENV_FILE="/tmp/.env"
+# 容器环境变量配置：将 .env 作为 --env-file 传入容器
 DOCKER_ENV_FILE_OPTION=""
-if [ "$ENV_FLAG" = "1" ]; then
-  if [ ! -f "$ENV_FILE" ]; then
-    echo "错误: ENV_FLAG=1 但环境文件 $ENV_FILE 不存在"
-    exit 1
-  fi
-  DOCKER_ENV_FILE_OPTION="--env-file ${ENV_FILE}"
+if [ -f "${ENV_FILE}" ]; then
+    DOCKER_ENV_FILE_OPTION="--env-file ${ENV_FILE}"
 fi
+
+# 获取版本号参数
+VERSION=$SPUG_RELEASE
+BASE_IMAGE_NAME="${BASE_IMAGE_NAME}"
+IMAGE_NAME="${BASE_IMAGE_NAME}:${VERSION}"
 
 echo "开始蓝绿部署 Docker 镜像: ${IMAGE_NAME}"
 echo "生产端口: ${PRODUCTION_PORT}, 临时端口: ${TEMP_PORT}"
