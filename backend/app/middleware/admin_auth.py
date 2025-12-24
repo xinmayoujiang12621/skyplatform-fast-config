@@ -1,25 +1,25 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, Request
 import jwt
+import re
 from config import ADMIN_JWT_SECRET, JWT_CLOCK_SKEW
 from schemas.response import unauthorized
 
-EXEMPT_PATHS_PREFIX = [
+EXEMPT_EXACT_PATHS = {
     "/api/health",
     "/api/v1/auth/login",
-    "/api/v1/pull",
     "/docs",
     "/openapi.json",
-]
+}
+PULL_PATH_RE = re.compile(r"^/api/v1/pull/[^/]+/[^/]+$")
 
 class AdminAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.method.upper() == "OPTIONS":
             return await call_next(request)
         path = request.url.path
-        for p in EXEMPT_PATHS_PREFIX:
-            if path.startswith(p):
-                return await call_next(request)
+        if (path in EXEMPT_EXACT_PATHS) or (request.method.upper() == "GET" and PULL_PATH_RE.match(path)):
+            return await call_next(request)
         auth = request.headers.get("Authorization")
         if not auth or not auth.lower().startswith("bearer "):
             return unauthorized("authorization header missing or not bearer")

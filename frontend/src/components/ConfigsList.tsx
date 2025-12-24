@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { createConfig, listConfigs, updateConfig, importConfigText } from '../api'
 import { useEffect, useState, useMemo } from 'react'
-import { Plus, X, Trash2, Edit2, Save } from 'lucide-react'
+import { Plus, X, Trash2, Edit2, Save, Download, Upload, RefreshCw } from 'lucide-react'
 
 // Standard Environments
 
@@ -79,6 +79,36 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
   const [showImportModal, setShowImportModal] = useState(false)
   const [importText, setImportText] = useState('')
 
+  // 导出为 .txt (KEY=VALUE 每行)
+  const handleExportTxt = () => {
+    if (!activeConfig) {
+      alert('当前环境没有配置可导出')
+      return
+    }
+    const lines = kvList.map(({ key, value }) => {
+      let v: any = value
+      if (typeof v === 'object') {
+        try {
+          v = JSON.stringify(v)
+        } catch {
+          v = String(v)
+        }
+      }
+      return `${key}=${String(v)}`
+    })
+    const content = lines.join('\n')
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const now = new Date()
+    const pad = (n: number) => `${n}`.padStart(2, '0')
+    const filename = `${serviceCode}-${env}-config-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.txt`
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // 处理删除
   const handleDelete = (keyToDelete: string) => {
     if (!confirm(`确定要删除配置 "${keyToDelete}" 吗？`)) return
@@ -147,27 +177,43 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
             {env && (
                 <button 
                     onClick={openAdd}
-                    className="flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors bg-blue-600 text-white hover:bg-blue-700"
+                    className="flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
                 >
-                    <Plus className="w-4 h-4 mr-1" />
+                    <Plus className="w-4 h-4 mr-1.5" />
                     添加
                 </button>
             )}
             {env && (
               <button 
                 onClick={() => setShowImportModal(true)}
-                className="px-3 py-1.5 rounded-lg text-sm transition-colors border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                className="flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-sm"
               >
+                <Upload className="w-4 h-4 mr-1.5" />
                 导入覆盖
               </button>
             )}
-            <button className="bg-gray-800 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-gray-900 shadow-sm" onClick={()=>listQ.refetch()}>刷新列表</button>
+            {env && (
+              <button 
+                onClick={handleExportTxt}
+                className="flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-sm"
+              >
+                <Download className="w-4 h-4 mr-1.5" />
+                导出TXT
+              </button>
+            )}
+            <button 
+                className="flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-sm" 
+                onClick={()=>listQ.refetch()}
+            >
+                <RefreshCw className={`w-4 h-4 mr-1.5 ${listQ.isFetching ? 'animate-spin' : ''}`} />
+                刷新列表
+            </button>
           </div>
         </div>
 
         {/* 弹窗 */}
         {showEditModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify中心 z-50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-gray-900">{editForm.isNew ? '新建配置项' : '编辑配置项'}</h3>

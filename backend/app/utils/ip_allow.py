@@ -49,7 +49,7 @@ def is_ip_allowed(db: Session, service_id: int, env: str, client_ip: str) -> boo
         return False
     for r in rules:
         cidr = (r.cidr or "").strip()
-        if cidr in ("0.0.0.0", "0.0.0.0/0", "*"):
+        if cidr in ("0.0.0.0", "0.0.0.0/0", "*", "0.0.0.0/32"):
             return True
         try:
             net = ipaddress.ip_network(cidr, strict=False)
