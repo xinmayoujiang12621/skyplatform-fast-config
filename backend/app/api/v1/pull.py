@@ -1,18 +1,23 @@
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.middleware.logging import get_logger
 from app.models.v1.configs import Config
-from app.models.v1.services import Service
+from app.models.v1.services import Service, ServiceIpAllow
 from app.utils.jwt_utils import verify_bearer
+from app.utils.ip_allow import extract_client_ip, is_ip_allowed
 from fastapi.responses import Response, JSONResponse
 from app.schemas.response import ok, unauthorized, not_found, internal_error, bad_request
 import json
+import ipaddress
 
+logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/pull", tags=["pull"])
 
 
 @router.get("/{service_code}/{env}")
-def pull_config(service_code: str, env: str, authorization: str | None = Header(default=None, alias="Authorization"),
+def pull_config(service_code: str, env: str, request: Request,
+                authorization: str | None = Header(default=None, alias="Authorization"),
                 if_none_match: str | None = Header(default=None, alias="If-None-Match"), db: Session = Depends(get_db)):
     if not authorization or not authorization.lower().startswith("bearer "):
         return unauthorized("authorization header missing or not bearer")
@@ -21,6 +26,10 @@ def pull_config(service_code: str, env: str, authorization: str | None = Header(
     s = db.query(Service).filter(Service.code == service_code).first()
     if not s:
         return not_found(f"service '{service_code}' not found")
+    client_ip = extract_client_ip(request)
+    logger.info(client_ip)
+    if not is_ip_allowed(db, s.id, env, client_ip):
+        raise HTTPException(status_code=403, detail="ip not allowed")
     c = db.query(Config).filter(Config.service_id == s.id, Config.env == env).first()
     if not c:
         return not_found(f"config not found for service '{service_code}' env '{env}'")

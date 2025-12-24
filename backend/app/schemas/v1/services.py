@@ -1,6 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
+from typing import Literal
 
 
 class ServiceCreate(BaseModel):
@@ -45,3 +46,20 @@ class CredentialOut(BaseModel):
 class CredentialRotateOut(BaseModel):
     ak: str
     sk: str
+
+
+class AllowIPCreate(BaseModel):
+    cidr: str
+    env: Optional[str] = None
+    note: Optional[str] = None
+
+
+class AllowIPOut(BaseModel):
+    id: int
+    cidr: str
+    env: Optional[str] = None
+    note: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

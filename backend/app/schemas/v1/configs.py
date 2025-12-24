@@ -43,3 +43,11 @@ class ConfigVersionOut(BaseModel):
 class RollbackReq(BaseModel):
     version: int
     summary: Optional[str] = None
+
+
+class ImportTextReq(BaseModel):
+    service_code: str
+    env: str
+    text: str
+    overwrite: bool = True
+    updated_by: Optional[str] = None

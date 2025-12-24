@@ -244,5 +244,50 @@ CREATE TABLE IF NOT EXISTS users
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS service_ip_allow
+(
+    id
+    BIGINT
+    UNSIGNED
+    PRIMARY
+    KEY
+    AUTO_INCREMENT,
+    service_id
+    BIGINT
+    UNSIGNED
+    NOT
+    NULL,
+    env VARCHAR
+    (
+        32
+    ) NULL,
+    cidr VARCHAR
+    (
+        64
+    ) NOT NULL,
+    note VARCHAR
+    (
+        256
+    ) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ipallow_service FOREIGN KEY
+    (
+        service_id
+    ) REFERENCES services
+    (
+        id
+    ) ON DELETE CASCADE,
+    UNIQUE KEY uk_ipallow_service_env_cidr
+    (
+        service_id,
+        env,
+        cidr
+    ),
+    INDEX idx_ipallow_service
+    (
+        service_id
+    )
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SET
 FOREIGN_KEY_CHECKS = 1;

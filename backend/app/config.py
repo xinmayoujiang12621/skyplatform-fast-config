@@ -19,6 +19,8 @@ JWT_CLOCK_SKEW = int(os.getenv("JWT_CLOCK_SKEW", "60"))
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
 ADMIN_JWT_SECRET = os.getenv("ADMIN_JWT_SECRET")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+TRUSTED_PROXIES = [o.strip() for o in os.getenv("TRUSTED_PROXIES", "").split(",") if o.strip()]
+REAL_IP_HEADER = os.getenv("REAL_IP_HEADER", "")
 
 
 def build_db_url():

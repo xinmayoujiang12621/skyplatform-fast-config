@@ -3,6 +3,7 @@ from sqlalchemy.dialects.mysql import VARBINARY
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
+from typing import Optional
 
 
 class Service(Base):
@@ -17,6 +18,7 @@ class Service(Base):
     credentials = relationship("ServiceCredential", back_populates="service", cascade="all, delete-orphan")
     tokens = relationship("ServiceToken", back_populates="service", cascade="all, delete-orphan")
     configs = relationship("Config", back_populates="service", cascade="all, delete-orphan")
+    allow_ips = relationship("ServiceIpAllow", back_populates="service", cascade="all, delete-orphan")
 
 
 class ServiceCredential(Base):
@@ -40,3 +42,14 @@ class ServiceToken(Base):
     expires_at = Column(TIMESTAMP, nullable=False)
     created_at = Column(TIMESTAMP, nullable=False, default=func.now())
     service = relationship("Service", back_populates="tokens")
+
+
+class ServiceIpAllow(Base):
+    __tablename__ = "service_ip_allow"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    service_id = Column(BigInteger, ForeignKey("services.id"), nullable=False)
+    env = Column(String(32))
+    cidr = Column(String(64), nullable=False)
+    note = Column(String(256))
+    created_at = Column(TIMESTAMP, nullable=False, default=func.now())
+    service = relationship("Service", back_populates="allow_ips")

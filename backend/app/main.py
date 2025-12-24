@@ -5,17 +5,21 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from app.schemas.response import fail
 from app.middleware.cors import register_cors
+from app.middleware.admin_auth import register_admin_auth
 from app.api.v1.services import router as services_router
 from app.api.v1.configs import router as configs_router
 from app.api.v1.pull import router as pull_router
+from app.api.v1.auth import router as auth_router
 
 app = FastAPI()
 
 register_cors(app)
+register_admin_auth(app)
 
 app.include_router(services_router)
 app.include_router(configs_router)
 app.include_router(pull_router)
+app.include_router(auth_router)
 
 
 @app.exception_handler(HTTPException)

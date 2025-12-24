@@ -2,12 +2,16 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
 import { listCredentials, deleteService, generateToken as apiGenerateToken, listTokens, deleteToken } from '../api'
 import { useState } from 'react'
-import { ArrowLeft, Shield, Copy, Trash2, AlertTriangle, Code2, Loader2, Check, Settings, List } from 'lucide-react'
+import { ArrowLeft, Shield, Copy, Trash2, AlertTriangle, Code2, Loader2, Check, Settings, List, Lock, Link as LinkIcon } from 'lucide-react'
 import ConfigsList from '../components/ConfigsList'
+import IpAllowList from '../components/IpAllowList'
+import { useEnv } from '../context/EnvContext'
 
 export default function ServiceDetailPage() {
   const { code } = useParams<{ code: string }>()
   const navigate = useNavigate()
+  const { currentEnv } = useEnv() // Use global env
+
   const credsQ = useQuery({ 
     queryKey: ['creds', code], 
     queryFn: () => code ? listCredentials(code) : Promise.resolve([]),
@@ -27,8 +31,8 @@ export default function ServiceDetailPage() {
 
   const [showDelete, setShowDelete] = useState(false)
   
-  // View mode state: 'tokens' or 'configs'
-  const [viewMode, setViewMode] = useState<'tokens' | 'configs'>('configs')
+  // View mode state: 'tokens' or 'configs' or 'ips'
+  const [viewMode, setViewMode] = useState<'tokens' | 'configs' | 'ips'>('configs')
   
   const deleteM = useMutation({
     mutationFn: () => deleteService(code!),
@@ -40,9 +44,19 @@ export default function ServiceDetailPage() {
 
   // Token 生成状态
   const [showTokenGen, setShowTokenGen] = useState(false)
-  const [currentEnv, setCurrentEnv] = useState('prod')
+  // const [currentEnv, setCurrentEnv] = useState('prod') // Removed local state
   const [generatedToken, setToken] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+
+  const [copiedUrl, setCopiedUrl] = useState(false)
+  const handleCopyQuickLink = () => {
+    if (!code) return
+    const base = (import.meta as any).env?.VITE_API_BASE || 'http://localhost:8000'
+    const url = `${base}/api/v1/pull/${code}/${currentEnv}`
+    navigator.clipboard.writeText(url)
+    setCopiedUrl(true)
+    setTimeout(() => setCopiedUrl(false), 2000)
+  }
 
   const handleGenerateToken = async () => {
     if (!code) return
@@ -103,17 +117,17 @@ export default function ServiceDetailPage() {
               <h3 className="font-semibold text-gray-900">访问凭证 (Access Credentials)</h3>
             </div>
             <div className="flex items-center gap-3">
-              <select 
-                value={currentEnv}
-                onChange={(e) => setCurrentEnv(e.target.value)}
-                className="text-sm border border-gray-200 rounded-md px-2 py-1 bg-white text-gray-700 hover:border-gray-300"
-                title="选择环境"
+              {/* Environment Selector moved to Top Header */}
+              <button
+                onClick={handleCopyQuickLink}
+                className={`flex items-center px-3 py-1.5 text-sm rounded-lg transition-colors shadow-sm border ${
+                  copiedUrl ? 'bg-green-100 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+                title="复制当前环境的拉取链接"
               >
-                <option value="dev">dev</option>
-                <option value="test">test</option>
-                <option value="stage">stage</option>
-                <option value="prod">prod</option>
-              </select>
+                <LinkIcon className="w-3.5 h-3.5 mr-2" />
+                {copiedUrl ? '已复制链接' : '复制拉取链接'}
+              </button>
               <button 
                 onClick={handleGenerateToken}
                 disabled={isGenerating}
@@ -167,7 +181,7 @@ export default function ServiceDetailPage() {
         </div>
 
         {/* 快捷入口 / 视图切换 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div 
             onClick={() => setViewMode('configs')}
             className={`p-6 rounded-xl border cursor-pointer hover:shadow-md transition-all ${
@@ -201,10 +215,27 @@ export default function ServiceDetailPage() {
               管理用于拉取配置的访问令牌。
             </p>
           </div>
+
+          <div 
+             onClick={() => setViewMode('ips')}
+             className={`p-6 rounded-xl border cursor-pointer hover:shadow-md transition-all ${
+              viewMode === 'ips' 
+                ? 'bg-green-50 border-green-200 shadow-sm ring-1 ring-green-200' 
+                : 'bg-white border-gray-100'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Lock className={`w-5 h-5 ${viewMode === 'ips' ? 'text-green-600' : 'text-gray-400'}`} />
+              <h3 className={`text-lg font-semibold ${viewMode === 'ips' ? 'text-green-900' : 'text-gray-900'}`}>IP 白名单</h3>
+            </div>
+            <p className={`text-sm ${viewMode === 'ips' ? 'text-green-700' : 'text-gray-600'}`}>
+              管理允许访问服务的来源 IP 地址。
+            </p>
+          </div>
         </div>
 
         {/* 动态视图区域 */}
-        {viewMode === 'tokens' ? (
+        {viewMode === 'tokens' && (
           <div className="bg-white rounded-xl shadow-sm border border-red-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
              <div className="px-6 py-4 border-b border-red-50 bg-red-50/30 flex justify-between items-center">
                <h3 className="text-lg font-semibold text-red-600">Token 列表</h3>
@@ -262,10 +293,18 @@ export default function ServiceDetailPage() {
                )}
              </div>
           </div>
-        ) : (
+        )}
+
+        {viewMode === 'configs' && (
           <div className="animate-in fade-in slide-in-from-top-4 duration-300">
             <ConfigsList serviceCode={code} env={currentEnv} />
           </div>
+        )}
+
+        {viewMode === 'ips' && (
+            <div className="animate-in fade-in slide-in-from-top-4 duration-300">
+                <IpAllowList serviceCode={code!} />
+            </div>
         )}
       </div>
 

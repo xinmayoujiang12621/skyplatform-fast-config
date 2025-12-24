@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.v1.configs import Config, ConfigVersion
 from app.models.v1.services import Service
-from app.schemas.v1.configs import ConfigCreate, ConfigUpdate, ConfigOut, ConfigVersionOut, RollbackReq
+from app.schemas.v1.configs import ConfigCreate, ConfigUpdate, ConfigOut, ConfigVersionOut, RollbackReq, ImportTextReq
 import difflib
 import json
 
@@ -113,3 +113,45 @@ def diff_versions(config_id: int, from_version: int = Query(..., alias="from"),
     diff = difflib.unified_diff(a.content.splitlines(), b.content.splitlines(), lineterm="")
     text = "\n".join(list(diff))
     return {"diff": text}
+
+
+@router.post("/import")
+def import_config(payload: ImportTextReq, db: Session = Depends(get_db)):
+    s = db.query(Service).filter(Service.code == payload.service_code).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="service not found")
+    # parse .env-like content
+    kv = {}
+    for raw_line in payload.text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        key = k.strip()
+        val = v.strip()
+        if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+            val = val[1:-1]
+        kv[key] = val
+    content = json.dumps(kv, ensure_ascii=False, indent=2)
+    c = db.query(Config).filter(Config.service_id == s.id, Config.env == payload.env).first()
+    if not c:
+        c = Config(service_id=s.id, env=payload.env, format="json", content=content, version=1,
+                   updated_by=payload.updated_by)
+        db.add(c)
+        db.commit()
+        db.refresh(c)
+        return {"id": c.id, "version": c.version}
+    # overwrite existing
+    if c.format != "json":
+        raise HTTPException(status_code=400, detail="format must be json")
+    c.content = content
+    c.updated_by = payload.updated_by
+    new_ver = int(c.version) + 1
+    snap = ConfigVersion(config_id=c.id, version=new_ver, content=c.content, summary="import overwrite")
+    c.version = new_ver
+    db.add(snap)
+    db.add(c)
+    db.commit()
+    return {"id": c.id, "version": c.version}

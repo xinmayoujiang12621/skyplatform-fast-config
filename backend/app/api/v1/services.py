@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.v1.services import Service, ServiceCredential, ServiceToken
+from app.models.v1.services import Service, ServiceCredential, ServiceToken, ServiceIpAllow
 from app.schemas.v1.services import ServiceCreate, ServiceOut, CredentialOut, CredentialRotateOut, TokenResponse, \
-    ServiceTokenOut
+    ServiceTokenOut, AllowIPCreate, AllowIPOut
 from app.utils.crypto import gen_ak_sk, encrypt_sk, decrypt_sk
 from app.config import CRED_MASTER_KEY
 import jwt
 from datetime import datetime, timedelta, timezone
+import ipaddress
 
 router = APIRouter(prefix="/api/v1/services", tags=["services"])
 
@@ -128,5 +129,59 @@ def delete_token(service_code: str, token_id: int, db: Session = Depends(get_db)
     if not t:
         raise HTTPException(status_code=404)
     db.delete(t)
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/{service_code}/allow-ips", response_model=list[AllowIPOut])
+def list_allow_ips(service_code: str, env: str | None = Query(default=None), db: Session = Depends(get_db)):
+    s = db.query(Service).filter(Service.code == service_code).first()
+    if not s:
+        raise HTTPException(status_code=404)
+    q = db.query(ServiceIpAllow).filter(ServiceIpAllow.service_id == s.id)
+    if env:
+        q = q.filter(ServiceIpAllow.env == env)
+    rules = q.order_by(ServiceIpAllow.created_at.desc()).all()
+    return rules
+
+
+@router.post("/{service_code}/allow-ips", response_model=AllowIPOut, status_code=201)
+def add_allow_ip(service_code: str, payload: AllowIPCreate, db: Session = Depends(get_db)):
+    s = db.query(Service).filter(Service.code == service_code).first()
+    if not s:
+        raise HTTPException(status_code=404)
+    try:
+        net = ipaddress.ip_network(payload.cidr, strict=False)
+        cidr = str(net)
+    except Exception:
+        # 尝试按单个IP解析并转换为CIDR
+        try:
+            ip = ipaddress.ip_address(payload.cidr)
+            cidr = f"{ip}/{32 if ip.version == 4 else 128}"
+        except Exception:
+            raise HTTPException(status_code=400, detail="invalid cidr or ip")
+    exists = db.query(ServiceIpAllow).filter(
+        ServiceIpAllow.service_id == s.id,
+        ServiceIpAllow.env == payload.env,
+        ServiceIpAllow.cidr == cidr
+    ).first()
+    if exists:
+        raise HTTPException(status_code=409, detail="rule already exists")
+    rule = ServiceIpAllow(service_id=s.id, env=payload.env, cidr=cidr, note=payload.note)
+    db.add(rule)
+    db.commit()
+    db.refresh(rule)
+    return rule
+
+
+@router.delete("/{service_code}/allow-ips/{rule_id}")
+def delete_allow_ip(service_code: str, rule_id: int, db: Session = Depends(get_db)):
+    s = db.query(Service).filter(Service.code == service_code).first()
+    if not s:
+        raise HTTPException(status_code=404)
+    r = db.query(ServiceIpAllow).filter(ServiceIpAllow.id == rule_id, ServiceIpAllow.service_id == s.id).first()
+    if not r:
+        raise HTTPException(status_code=404)
+    db.delete(r)
     db.commit()
     return {"ok": True}

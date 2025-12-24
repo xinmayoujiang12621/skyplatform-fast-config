@@ -1,6 +1,8 @@
-import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Settings, Box, User, LogOut, Bell } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { LayoutDashboard, Box, LogOut, Bell, Globe } from 'lucide-react'
 import { ReactNode } from 'react'
+import { useEnv } from '../context/EnvContext'
+import { useAuth } from '../context/AuthContext'
 
 interface LayoutProps {
   children: ReactNode
@@ -9,6 +11,14 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const path = location.pathname
+  const { currentEnv, setEnv, envOptions } = useEnv()
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
 
   const menus = [
     { name: '服务概览', path: '/', icon: LayoutDashboard },
@@ -67,11 +77,31 @@ export default function Layout({ children }: LayoutProps) {
              </h2>
           </div>
           <div className="flex items-center gap-4">
+             {/* Env Selector - Only show on service detail pages */}
+             {path.startsWith('/services/') && (
+               <div className="flex items-center bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
+                  <Globe className="w-4 h-4 text-gray-400 mr-2" />
+                  <select 
+                    value={currentEnv}
+                    onChange={(e) => setEnv(e.target.value)}
+                    className="bg-transparent text-sm text-gray-700 font-medium focus:outline-none cursor-pointer"
+                  >
+                    {envOptions.map(env => (
+                      <option key={env} value={env}>{env}</option>
+                    ))}
+                  </select>
+               </div>
+             )}
+
+             <div className="h-8 w-px bg-gray-200 mx-2"></div>
+
              <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
                <Bell className="w-5 h-5" />
              </button>
-             <div className="h-8 w-px bg-gray-200 mx-2"></div>
-             <button className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
+             <button 
+                onClick={handleLogout}
+                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 ml-2"
+             >
                <LogOut className="w-4 h-4" />
                <span>退出</span>
              </button>
@@ -79,7 +109,7 @@ export default function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Scrollable Content */}
-        <main className="flex-1 overflow-y-auto p-8 scroll-smooth">
+        <main className="flex-1 overflow-y-auto p-8 scroll-smooth no-scrollbar">
            <div className="max-w-6xl mx-auto space-y-6">
               {children}
            </div>
