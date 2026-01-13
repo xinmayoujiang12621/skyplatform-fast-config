@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { createConfig, listConfigs, updateConfig, importConfigText } from '../api'
 import { useEffect, useState, useMemo } from 'react'
-import { Plus, X, Trash2, Edit2, Save, Download, Upload, RefreshCw } from 'lucide-react'
+import { Plus, X, Trash2, Edit2, Save, Download, Upload, RefreshCw, Search } from 'lucide-react'
 
 // Standard Environments
 
@@ -36,6 +36,13 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
 
   // 解析出的 KV 列表
   const [kvList, setKvList] = useState<KvItem[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const filteredKvList = useMemo(() => {
+    if (!searchQuery) return kvList
+    const q = searchQuery.toLowerCase()
+    return kvList.filter(item => item.key.toLowerCase().includes(q))
+  }, [kvList, searchQuery])
 
   useEffect(() => {
     if (activeConfig) {
@@ -183,6 +190,16 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
           </div>
           
           <div className="flex items-center gap-2">
+            <div className="relative mr-2">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input 
+                type="text"
+                placeholder="搜索配置名称"
+                className="pl-9 pr-4 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 transition-all"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
             {env && (
                 <button 
                     onClick={openAdd}
@@ -386,7 +403,7 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {env && activeConfig && kvList.map((item) => (
+              {env && activeConfig && filteredKvList.map((item) => (
                 <tr key={item.key} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="p-3 font-mono text-gray-700 select-all">{item.key}</td>
                   <td className="p-3 font-mono text-gray-600 break-all">
@@ -428,6 +445,14 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
               {env && !activeConfig && !listQ.isLoading && (
                  /* Empty state */
                  null
+              )}
+
+              {env && activeConfig && kvList.length > 0 && filteredKvList.length === 0 && (
+                <tr>
+                    <td colSpan={3} className="p-8 text-center text-gray-400">
+                        未找到匹配 "{searchQuery}" 的配置项
+                    </td>
+                </tr>
               )}
 
               {env && activeConfig && kvList.length === 0 && (
