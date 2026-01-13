@@ -5,6 +5,6 @@ docker build --target production -t skyplatform-fast-config:prod .
 # 本地Docker运行
 docker run -d --name skyplatform-fast-config -p 9530:9530 --env-file .env skyplatform-fast-config:prod
 # 打标签
-docker tag skyplatform-fast-config:prod crpi-pe3cq1cvarbuqi25.cn-beijing.personal.cr.aliyuncs.com/skyplatform/skyplatform-fast-config:0.2.3
+docker tag skyplatform-fast-config:prod crpi-pe3cq1cvarbuqi25.cn-beijing.personal.cr.aliyuncs.com/skyplatform/skyplatform-fast-config:0.2.6
 # 推送镜像
-docker push crpi-pe3cq1cvarbuqi25.cn-beijing.personal.cr.aliyuncs.com/skyplatform/skyplatform-fast-config:0.2.3
+docker push crpi-pe3cq1cvarbuqi25.cn-beijing.personal.cr.aliyuncs.com/skyplatform/skyplatform-fast-config:0.2.6
