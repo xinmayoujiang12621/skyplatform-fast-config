@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
+export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
 async function request(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem('admin_token')
@@ -66,7 +66,16 @@ export async function deleteToken(service: string, tokenId: number) {
   return r.json()
 }
 
-export async function createConfig(body: { service_code: string; env: string; format: string; content: string; schema_def?: string }) {
+export async function listTokensMonitor(params?: { days?: number; env?: string }) {
+  const u = new URL(`${API_BASE}/api/v1/services/tokens/monitor`)
+  if (params?.days) u.searchParams.set('days', String(params.days))
+  if (params?.env) u.searchParams.set('env', params.env)
+  const r = await request(u.toString())
+  if (!r.ok) throw new Error('list tokens monitor failed')
+  return r.json() as Promise<{ total: number; soon: number; items: Array<{ id: number; service_code: string; env: string; created_at: string; expires_at: string }> }>
+}
+
+export async function createConfig(body: { service_code: string; env: string; format: string; content: string; schema_def?: string; version?: string }) {
   const r = await request('/api/v1/configs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   if (!r.ok) {
     if (r.status === 409) {
@@ -87,13 +96,13 @@ export async function listConfigs(params: { service?: string; env?: string }) {
   return r.json()
 }
 
-export async function updateConfig(id: number, body: { content: string; schema_def?: string; version: number; updated_by?: string }) {
+export async function updateConfig(id: number, body: { content: string; schema_def?: string; base_version: string; version: string; updated_by?: string }) {
   const r = await request(`/api/v1/configs/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   if (!r.ok) throw new Error('update config failed')
   return r.json()
 }
- 
-export async function importConfigText(body: { service_code: string; env: string; text: string; overwrite?: boolean; updated_by?: string }) {
+
+export async function importConfigText(body: { service_code: string; env: string; text: string; overwrite?: boolean; updated_by?: string; base_version?: string; new_version?: string }) {
   const r = await request('/api/v1/configs/import', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -109,13 +118,13 @@ export async function listVersions(id: number) {
   return r.json()
 }
 
-export async function rollbackConfig(id: number, version: number, summary?: string) {
-  const r = await request(`/api/v1/configs/${id}/rollback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version, summary }) })
+export async function rollbackConfig(id: number, version: string, new_version: string, summary?: string) {
+  const r = await request(`/api/v1/configs/${id}/rollback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version, new_version, summary }) })
   if (!r.ok) throw new Error('rollback failed')
   return r.json()
 }
 
-export async function diffConfig(id: number, from: number, to: number) {
+export async function diffConfig(id: number, from: string, to: string) {
   const r = await request(`/api/v1/configs/${id}/diff?from=${from}&to=${to}`)
   if (!r.ok) throw new Error('diff failed')
   return r.json()
@@ -127,6 +136,37 @@ export interface AllowIP {
   env?: string
   note?: string
   created_at: string
+}
+
+export interface BackendBase {
+  id: number
+  appid: string
+  base_url: string
+  note?: string
+  updated_by?: string
+  updated_at: string
+}
+
+export async function listBackendBases() {
+  const r = await request('/api/v1/meta/backend-bases')
+  if (!r.ok) throw new Error('list backend bases failed')
+  return r.json()
+}
+
+export async function saveBackendBase(body: { appid: string; base_url: string; note?: string; updated_by?: string }) {
+  const r = await request('/api/v1/meta/backend-base', { 
+    method: 'POST', 
+    headers: { 'Content-Type': 'application/json' }, 
+    body: JSON.stringify(body) 
+  })
+  if (!r.ok) throw new Error('save backend base failed')
+  return r.json()
+}
+
+export async function deleteBackendBase(appid: string) {
+  const r = await request(`/api/v1/meta/backend-base?appid=${appid}`, { method: 'DELETE' })
+  if (!r.ok) throw new Error('delete backend base failed')
+  return r.json()
 }
 
 export async function listAllowIps(service: string, env?: string) {

@@ -2,18 +2,20 @@ from fastapi import Request, HTTPException
 from sqlalchemy.orm import Session
 from models.v1.services import ServiceIpAllow
 import ipaddress
-from config import TRUSTED_PROXIES, REAL_IP_HEADER
+
+from settings import settings
+
 
 def extract_client_ip(request: Request) -> str:
-    if REAL_IP_HEADER:
-        h = request.headers.get(REAL_IP_HEADER)
+    if settings.REAL_IP_HEADER:
+        h = request.headers.get(settings.REAL_IP_HEADER)
         if h:
             return h.split(",")[0].strip()
     client = request.client.host
     trusted = False
     try:
         ip_obj = ipaddress.ip_address(client)
-        for cidr in TRUSTED_PROXIES:
+        for cidr in settings.TRUSTED_PROXIES:
             try:
                 if ip_obj in ipaddress.ip_network(cidr, strict=False):
                     trusted = True

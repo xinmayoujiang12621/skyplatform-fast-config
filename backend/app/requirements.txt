@@ -1,5 +1,6 @@
 # FastAPI项目依赖，python 3.12
 fastapi==0.116.2
+requests
 uvicorn[standard]==0.32.0
 pydantic-settings==2.6.1
 httpx==0.28.1

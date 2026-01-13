@@ -35,6 +35,18 @@ class ServiceTokenOut(BaseModel):
 class TokenResponse(BaseModel):
     token: str
 
+class TokenMonitorItemOut(BaseModel):
+    id: int
+    service_code: str
+    env: str
+    created_at: datetime
+    expires_at: datetime
+
+class TokenMonitorOut(BaseModel):
+    total: int
+    soon: int
+    items: list[TokenMonitorItemOut]
+
 
 class CredentialOut(BaseModel):
     ak: str

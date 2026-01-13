@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Box, LogOut, Bell, Globe } from 'lucide-react'
+import { LayoutDashboard, Box, LogOut, Bell, Globe, Server } from 'lucide-react'
 import { ReactNode } from 'react'
 import { useEnv } from '../context/EnvContext'
 import { useAuth } from '../context/AuthContext'
@@ -22,6 +22,8 @@ export default function Layout({ children }: LayoutProps) {
 
   const menus = [
     { name: '服务概览', path: '/', icon: LayoutDashboard },
+    { name: 'Token监控', path: '/tokens-monitor', icon: Bell },
+    { name: '后端地址映射', path: '/backend-bases', icon: Server },
   ]
 
   return (

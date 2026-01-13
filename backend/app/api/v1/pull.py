@@ -40,9 +40,18 @@ def pull_config(service_code: str, env: str, request: Request,
     if c.format != "json":
         return bad_request("format must be json")
     try:
-        parsed_content = json.loads(c.content)
+        parsed = json.loads(c.content)
     except Exception:
         return internal_error("content parse failed")
+    str_map = {}
+    if isinstance(parsed, dict):
+        for k, v in parsed.items():
+            if isinstance(v, (dict, list)):
+                str_map[k] = json.dumps(v, ensure_ascii=False)
+            else:
+                str_map[k] = str(v)
+    else:
+        return internal_error("content must be object")
     payload = {
         "service_code": service_code,
         "env": env,
@@ -50,6 +59,6 @@ def pull_config(service_code: str, env: str, request: Request,
         "version": c.version,
         "media_type": ct,
         "etag": etag,
-        "content": parsed_content,
+        "content": str_map,
     }
     return JSONResponse(content=ok(payload), headers={"ETag": etag})

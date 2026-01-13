@@ -6,9 +6,12 @@ from models.v1.services import Service
 from schemas.v1.configs import ConfigCreate, ConfigUpdate, ConfigOut, ConfigVersionOut, RollbackReq, ImportTextReq
 import difflib
 import json
+import re
 
 router = APIRouter(prefix="/api/v1/configs", tags=["configs"])
 
+def is_valid_version(v: str) -> bool:
+    return bool(re.fullmatch(r"\d+\.\d+\.\d+", v))
 
 @router.get("")
 def list_configs(service: str = Query(None), env: str = Query(None), db: Session = Depends(get_db)):
@@ -31,16 +34,32 @@ def create_config(payload: ConfigCreate, db: Session = Depends(get_db)):
     if payload.format != "json":
         raise HTTPException(status_code=400, detail="format must be json")
     try:
-        json.loads(payload.content)
+        obj = json.loads(payload.content)
     except Exception:
         raise HTTPException(status_code=400, detail="content must be valid json")
+    if not is_valid_version(payload.version):
+        raise HTTPException(status_code=400, detail="version must be x.y.z")
     exists = db.query(Config).filter(Config.service_id == s.id, Config.env == payload.env).first()
     if exists:
         raise HTTPException(status_code=409,
                             detail=f"Config for service '{payload.service_code}' and env '{payload.env}' already exists")
-    c = Config(service_id=s.id, env=payload.env, format=payload.format, content=payload.content,
-               schema_def=payload.schema_def, version=1)
+    str_map = {}
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, (dict, list)):
+                str_map[k] = json.dumps(v, ensure_ascii=False)
+            else:
+                str_map[k] = str(v)
+    else:
+        raise HTTPException(status_code=400, detail="content must be object")
+    content_str = json.dumps(str_map, ensure_ascii=False, indent=2)
+    c = Config(service_id=s.id, env=payload.env, format=payload.format, content=content_str,
+               schema_def=payload.schema_def, version=payload.version)
     db.add(c)
+    db.commit()
+    db.refresh(c)
+    snap = ConfigVersion(config_id=c.id, version=payload.version, content=c.content)
+    db.add(snap)
     db.commit()
     db.refresh(c)
     return c
@@ -54,17 +73,31 @@ def update_config(config_id: int, payload: ConfigUpdate, db: Session = Depends(g
     if c.format != "json":
         raise HTTPException(status_code=400, detail="format must be json")
     try:
-        json.loads(payload.content)
+        obj = json.loads(payload.content)
     except Exception:
         raise HTTPException(status_code=400, detail="content must be valid json")
-    if c.version != payload.version:
+    if not is_valid_version(payload.version) or not is_valid_version(payload.base_version):
+        raise HTTPException(status_code=400, detail="version must be x.y.z")
+    if c.version != payload.base_version:
         raise HTTPException(status_code=409)
-    c.content = payload.content
+    dup = db.query(ConfigVersion).filter(ConfigVersion.config_id == c.id,
+                                         ConfigVersion.version == payload.version).first()
+    if dup:
+        raise HTTPException(status_code=409, detail="version already exists")
+    str_map = {}
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, (dict, list)):
+                str_map[k] = json.dumps(v, ensure_ascii=False)
+            else:
+                str_map[k] = str(v)
+    else:
+        raise HTTPException(status_code=400, detail="content must be object")
+    c.content = json.dumps(str_map, ensure_ascii=False, indent=2)
     c.schema_def = payload.schema_def
     c.updated_by = payload.updated_by
-    new_ver = int(c.version) + 1
-    snap = ConfigVersion(config_id=c.id, version=new_ver, content=c.content)
-    c.version = new_ver
+    snap = ConfigVersion(config_id=c.id, version=payload.version, content=c.content)
+    c.version = payload.version
     db.add(snap)
     db.add(c)
     db.commit()
@@ -77,7 +110,7 @@ def update_config(config_id: int, payload: ConfigUpdate, db: Session = Depends(g
 @router.get("/{config_id}/versions", response_model=list[ConfigVersionOut])
 def list_versions(config_id: int, db: Session = Depends(get_db)):
     rows = db.query(ConfigVersion).filter(ConfigVersion.config_id == config_id).order_by(
-        ConfigVersion.version.asc()).all()
+        ConfigVersion.created_at.asc()).all()
     return [{"version": r.version, "summary": r.summary, "created_by": r.created_by, "created_at": str(r.created_at)}
             for r in rows]
 
@@ -87,23 +120,28 @@ def rollback(config_id: int, payload: RollbackReq, db: Session = Depends(get_db)
     c = db.query(Config).filter(Config.id == config_id).first()
     if not c:
         raise HTTPException(status_code=404)
+    if not is_valid_version(payload.version) or not is_valid_version(payload.new_version):
+        raise HTTPException(status_code=400, detail="version must be x.y.z")
     v = db.query(ConfigVersion).filter(ConfigVersion.config_id == config_id,
                                        ConfigVersion.version == payload.version).first()
     if not v:
         raise HTTPException(status_code=404)
+    dup = db.query(ConfigVersion).filter(ConfigVersion.config_id == c.id,
+                                         ConfigVersion.version == payload.new_version).first()
+    if dup:
+        raise HTTPException(status_code=409, detail="version already exists")
     c.content = v.content
-    new_ver = int(c.version) + 1
-    snap = ConfigVersion(config_id=c.id, version=new_ver, content=c.content, summary=payload.summary)
-    c.version = new_ver
+    snap = ConfigVersion(config_id=c.id, version=payload.new_version, content=c.content, summary=payload.summary)
+    c.version = payload.new_version
     db.add(snap)
     db.add(c)
     db.commit()
-    return {"version": new_ver}
+    return {"version": c.version}
 
 
 @router.get("/{config_id}/diff")
-def diff_versions(config_id: int, from_version: int = Query(..., alias="from"),
-                  to_version: int = Query(..., alias="to"), db: Session = Depends(get_db)):
+def diff_versions(config_id: int, from_version: str = Query(..., alias="from"),
+                  to_version: str = Query(..., alias="to"), db: Session = Depends(get_db)):
     a = db.query(ConfigVersion).filter(ConfigVersion.config_id == config_id,
                                        ConfigVersion.version == from_version).first()
     b = db.query(ConfigVersion).filter(ConfigVersion.config_id == config_id,
@@ -137,20 +175,32 @@ def import_config(payload: ImportTextReq, db: Session = Depends(get_db)):
     content = json.dumps(kv, ensure_ascii=False, indent=2)
     c = db.query(Config).filter(Config.service_id == s.id, Config.env == payload.env).first()
     if not c:
-        c = Config(service_id=s.id, env=payload.env, format="json", content=content, version=1,
+        if not is_valid_version(payload.new_version):
+            raise HTTPException(status_code=400, detail="version must be x.y.z")
+        c = Config(service_id=s.id, env=payload.env, format="json", content=content, version=payload.new_version,
                    updated_by=payload.updated_by)
         db.add(c)
         db.commit()
         db.refresh(c)
+        snap = ConfigVersion(config_id=c.id, version=payload.new_version, content=c.content, summary="import create")
+        db.add(snap)
+        db.commit()
         return {"id": c.id, "version": c.version}
     # overwrite existing
     if c.format != "json":
         raise HTTPException(status_code=400, detail="format must be json")
+    if not is_valid_version(payload.new_version) or (payload.base_version and not is_valid_version(payload.base_version)):
+        raise HTTPException(status_code=400, detail="version must be x.y.z")
+    if payload.base_version and c.version != payload.base_version:
+        raise HTTPException(status_code=409)
+    dup = db.query(ConfigVersion).filter(ConfigVersion.config_id == c.id,
+                                         ConfigVersion.version == payload.new_version).first()
+    if dup:
+        raise HTTPException(status_code=409, detail="version already exists")
     c.content = content
     c.updated_by = payload.updated_by
-    new_ver = int(c.version) + 1
-    snap = ConfigVersion(config_id=c.id, version=new_ver, content=c.content, summary="import overwrite")
-    c.version = new_ver
+    snap = ConfigVersion(config_id=c.id, version=payload.new_version, content=c.content, summary="import overwrite")
+    c.version = payload.new_version
     db.add(snap)
     db.add(c)
     db.commit()

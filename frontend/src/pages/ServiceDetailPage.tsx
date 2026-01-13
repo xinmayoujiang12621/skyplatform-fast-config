@@ -2,7 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
 import { listCredentials, deleteService, generateToken as apiGenerateToken, listTokens, deleteToken } from '../api'
 import { useState } from 'react'
-import { ArrowLeft, Shield, Copy, Trash2, AlertTriangle, Code2, Loader2, Check, Settings, List, Lock, Link as LinkIcon } from 'lucide-react'
+import { ArrowLeft, Shield, Copy, Trash2, AlertTriangle, Code2, Loader2, Check, Settings, List, Lock, Link as LinkIcon, Download } from 'lucide-react'
 import ConfigsList from '../components/ConfigsList'
 import IpAllowList from '../components/IpAllowList'
 import { useEnv } from '../context/EnvContext'
@@ -78,6 +78,21 @@ export default function ServiceDetailPage() {
     navigator.clipboard.writeText(text)
     setCopiedToken(text)
     setTimeout(() => setCopiedToken(null), 2000)
+  }
+
+  const handleExportConfig = (token: string, env: string) => {
+    const base = (import.meta as any).env?.VITE_API_BASE || 'http://localhost:8000'
+    const configContent = `config:\n  config_url: ${base}/api/v1/pull/${code}/${env}\n  token: ${token}`
+    
+    const blob = new Blob([configContent], { type: 'text/yaml;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', 'config.yaml')
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   if (!code) return <div>Invalid Service Code</div>
@@ -260,17 +275,26 @@ export default function ServiceDetailPage() {
                             ? `${t.token.slice(0, 12)}••••••••••••••••••••••••••••••••${t.token.slice(-12)}`
                             : t.token}
                         </span>
-                        <button 
-                          onClick={() => copyToClipboard(t.token)}
-                          className={`p-1.5 rounded-md transition-all ${
-                            copiedToken === t.token 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-white text-gray-400 hover:text-blue-600 hover:bg-blue-50 border border-gray-200 shadow-sm'
-                          }`}
-                          title="复制完整 Token"
-                        >
-                          {copiedToken === t.token ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleExportConfig(t.token, t.env)}
+                            className="p-1.5 rounded-md transition-all bg-white text-gray-400 hover:text-blue-600 hover:bg-blue-50 border border-gray-200 shadow-sm"
+                            title="导出 config.yaml"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => copyToClipboard(t.token)}
+                            className={`p-1.5 rounded-md transition-all ${
+                              copiedToken === t.token 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-white text-gray-400 hover:text-blue-600 hover:bg-blue-50 border border-gray-200 shadow-sm'
+                            }`}
+                            title="复制完整 Token"
+                          >
+                            {copiedToken === t.token ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
                      </div>
                    </div>
                    <button 

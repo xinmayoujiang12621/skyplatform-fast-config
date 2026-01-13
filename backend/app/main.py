@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
-from config import SERVICE_VERSION
+from settings import settings
 from schemas.response import fail
 from middleware.cors import register_cors
 from middleware.admin_auth import register_admin_auth
@@ -14,6 +14,7 @@ from api.v1.services import router as services_router
 from api.v1.configs import router as configs_router
 from api.v1.pull import router as pull_router
 from api.v1.auth import router as auth_router
+from api.v1.meta import router as meta_router
 
 app = FastAPI()
 
@@ -24,6 +25,7 @@ app.include_router(services_router)
 app.include_router(configs_router)
 app.include_router(pull_router)
 app.include_router(auth_router)
+app.include_router(meta_router)
 
 
 @app.exception_handler(HTTPException)
@@ -53,7 +55,7 @@ async def health_check():
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
             "service": "agenterra-local-app-backend-v1",
-            "version": SERVICE_VERSION
+            "version": settings.SERVICE_VERSION
         },
         status_code=200
     )

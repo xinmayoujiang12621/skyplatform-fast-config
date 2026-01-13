@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.v1.services import Service, ServiceCredential, ServiceToken, ServiceIpAllow
 from schemas.v1.services import ServiceCreate, ServiceOut, CredentialOut, CredentialRotateOut, TokenResponse, \
-    ServiceTokenOut, AllowIPCreate, AllowIPOut
+    ServiceTokenOut, AllowIPCreate, AllowIPOut, TokenMonitorOut, TokenMonitorItemOut
+from settings import settings
 from utils.crypto import gen_ak_sk, encrypt_sk, decrypt_sk
-from config import CRED_MASTER_KEY
+
 import jwt
 from datetime import datetime, timedelta, timezone
 import ipaddress
@@ -24,7 +25,7 @@ def create_service(payload: ServiceCreate, db: Session = Depends(get_db)):
     exists = db.query(Service).filter(Service.code == payload.code).first()
     if exists:
         raise HTTPException(status_code=409)
-    if not CRED_MASTER_KEY:
+    if not settings.CRED_MASTER_KEY:
         raise HTTPException(status_code=500, detail="CRED_MASTER_KEY not configured")
     s = Service(code=payload.code, name=payload.name, owner=payload.owner, active=True)
     db.add(s)
@@ -44,6 +45,25 @@ def delete_service(service_code: str, db: Session = Depends(get_db)):
     db.delete(s)
     db.commit()
     return {"ok": True}
+
+@router.get("/tokens/monitor", response_model=TokenMonitorOut)
+def tokens_monitor(days: int = 7, env: str | None = None, db: Session = Depends(get_db)):
+    q = db.query(ServiceToken, Service.code).join(Service, ServiceToken.service_id == Service.id)
+    if env:
+        q = q.filter(ServiceToken.env == env)
+    rows = q.order_by(ServiceToken.expires_at.asc()).all()
+    items: list[TokenMonitorItemOut] = []
+    now = datetime.now(timezone.utc)
+    soon = 0
+    for t, code in rows:
+        exp = t.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        left_days = (exp - now).days
+        if left_days <= days:
+            soon += 1
+        items.append(TokenMonitorItemOut(id=t.id, service_code=code, env=t.env, created_at=t.created_at, expires_at=t.expires_at))
+    return TokenMonitorOut(total=len(items), soon=soon, items=items)
 
 
 @router.get("/{service_code}/credentials", response_model=list[CredentialOut])

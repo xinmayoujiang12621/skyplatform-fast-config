@@ -1,11 +1,12 @@
 import base64
 import os
 from cryptography.fernet import Fernet
-from config import CRED_MASTER_KEY
+
+from settings import settings
 
 
 def _get_fernet():
-    key = CRED_MASTER_KEY
+    key = settings.CRED_MASTER_KEY
     if not key:
         raise RuntimeError("CRED_MASTER_KEY missing")
     return Fernet(key.encode())

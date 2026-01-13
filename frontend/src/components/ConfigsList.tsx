@@ -5,9 +5,22 @@ import { Plus, X, Trash2, Edit2, Save, Download, Upload, RefreshCw } from 'lucid
 
 // Standard Environments
 
+// 语义化版本号补丁位递增：x.y.z -> x.y.(z+1)，无法解析时返回 '0.0.1'
+const incPatch = (v: string | number | undefined): string => {
+  const s = String(v ?? '')
+  const m = s.match(/^\s*(\d+)\.(\d+)\.(\d+)/)
+  if (m) {
+    const major = Number(m[1])
+    const minor = Number(m[2])
+    const patch = Number(m[3])
+    return `${major}.${minor}.${patch + 1}`
+  }
+  return '0.0.1'
+}
+
 interface KvItem {
   key: string
-  value: any
+  value: string
 }
 
 export default function ConfigsList({ serviceCode, env }: { serviceCode: string, env: string }) {
@@ -28,7 +41,7 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
     if (activeConfig) {
       try {
         const obj = JSON.parse(activeConfig.content)
-        const list = Object.entries(obj).map(([key, value]) => ({ key, value }))
+        const list = Object.entries(obj).map(([key, value]) => ({ key, value: String(value) }))
         setKvList(list)
       } catch (e) {
         console.error("Failed to parse config content", e)
@@ -41,11 +54,12 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
 
   // 统一更新函数
   const updateMutation = useMutation({
-    mutationFn: (newContent: Record<string, any>) => {
+    mutationFn: ({ content, version }: { content: Record<string, string>, version: string }) => {
       if (!activeConfig) throw new Error("No active config")
       return updateConfig(activeConfig.id, {
-        content: JSON.stringify(newContent, null, 2),
-        version: activeConfig.version,
+        content: JSON.stringify(content, null, 2),
+        base_version: String(activeConfig.version),
+        version: version,
         updated_by: 'admin' // 简化处理，实际应从上下文获取用户
       })
     },
@@ -59,11 +73,12 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
 
   // 创建新配置（当该环境无配置时）
   const createMutation = useMutation({
-    mutationFn: (initialContent: string) => createConfig({
+    mutationFn: ({ content, version }: { content: string, version: string }) => createConfig({
       service_code: serviceCode,
       env: env,
       format: 'json',
-      content: initialContent
+      content: content,
+      version: version
     }),
     onSuccess: () => {
       listQ.refetch()
@@ -75,9 +90,13 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
 
   // 添加/编辑弹窗状态
   const [showEditModal, setShowEditModal] = useState(false)
-  const [editForm, setEditForm] = useState<{key: string, value: string, isNew: boolean}>({ key: '', value: '', isNew: true })
+  const [editForm, setEditForm] = useState<{key: string, value: string, isNew: boolean, version: string}>({ key: '', value: '', isNew: true, version: '' })
   const [showImportModal, setShowImportModal] = useState(false)
   const [importText, setImportText] = useState('')
+  const [importVersion, setImportVersion] = useState('')
+  // 应用新版本号弹窗
+  const [showBumpModal, setShowBumpModal] = useState(false)
+  const [bumpVersion, setBumpVersion] = useState('')
 
   // 导出为 .txt (KEY=VALUE 每行)
   const handleExportTxt = () => {
@@ -86,15 +105,7 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
       return
     }
     const lines = kvList.map(({ key, value }) => {
-      let v: any = value
-      if (typeof v === 'object') {
-        try {
-          v = JSON.stringify(v)
-        } catch {
-          v = String(v)
-        }
-      }
-      return `${key}=${String(v)}`
+      return `${key}=${String(value)}`
     })
     const content = lines.join('\n')
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
@@ -113,57 +124,48 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
   const handleDelete = (keyToDelete: string) => {
     if (!confirm(`确定要删除配置 "${keyToDelete}" 吗？`)) return
     
-    const currentObj: Record<string, any> = {}
+    // Auto bump version
+    const ver = activeConfig ? incPatch(String(activeConfig.version)) : '0.0.1'
+
+    const currentObj: Record<string, string> = {}
     kvList.forEach(item => currentObj[item.key] = item.value)
     delete currentObj[keyToDelete]
     
-    updateMutation.mutate(currentObj)
+    updateMutation.mutate({ content: currentObj, version: ver })
   }
 
   // 处理保存（新增或修改）
   const handleSave = () => {
-    // 尝试解析 Value 为 JSON 或 Number/Boolean
-    let finalValue: any = editForm.value
-    // 简单的类型推断
-    if (editForm.value === 'true') finalValue = true
-    else if (editForm.value === 'false') finalValue = false
-    else if (!isNaN(Number(editForm.value)) && editForm.value.trim() !== '') finalValue = Number(editForm.value)
-    else {
-        try {
-             // 尝试解析 JSON
-             const parsed = JSON.parse(editForm.value)
-             if (typeof parsed === 'object') finalValue = parsed
-        } catch {
-            // keep string
-        }
-    }
+    const finalValue = editForm.value
     
+    // Auto calculate version
+    const nextVer = activeConfig ? incPatch(String(activeConfig.version)) : '0.0.1'
+
     if (!activeConfig) {
         // 如果没有配置，则创建新配置
         const initialContent = JSON.stringify({ [editForm.key]: finalValue }, null, 2)
-        createMutation.mutate(initialContent)
+        createMutation.mutate({ content: initialContent, version: nextVer })
     } else {
         // 更新现有配置
-        const currentObj: Record<string, any> = {}
+        const currentObj: Record<string, string> = {}
         kvList.forEach(item => currentObj[item.key] = item.value)
         currentObj[editForm.key] = finalValue
-        updateMutation.mutate(currentObj)
+        updateMutation.mutate({ content: currentObj, version: nextVer })
     }
     setShowEditModal(false)
   }
 
   // 打开新增弹窗
   const openAdd = () => {
-    setEditForm({ key: '', value: '', isNew: true })
+    // If config exists, it's an update, so version should be new (empty to prompt user). If not, it's create (default 0.0.1)
+    setEditForm({ key: '', value: '', isNew: true, version: activeConfig ? '' : '0.0.1' })
     setShowEditModal(true)
   }
 
   // 打开编辑弹窗
   const openEdit = (item: KvItem) => {
-    let valStr = String(item.value)
-    if (typeof item.value === 'object') valStr = JSON.stringify(item.value, null, 2)
-    
-    setEditForm({ key: item.key, value: valStr, isNew: false })
+    const valStr = String(item.value)
+    setEditForm({ key: item.key, value: valStr, isNew: false, version: '' })
     setShowEditModal(true)
   }
 
@@ -171,7 +173,14 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
     <div className="grid gap-6">
       <div className="bg-white p-4 rounded-md shadow">
         <div className="flex justify-between items-center mb-3">
-          <div className="text-lg font-medium">配置列表</div>
+          <div className="flex items-center gap-3">
+            <div className="text-lg font-medium">配置列表</div>
+            {activeConfig && (
+              <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded border border-blue-200">
+                v{activeConfig.version}
+              </span>
+            )}
+          </div>
           
           <div className="flex items-center gap-2">
             {env && (
@@ -199,6 +208,14 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
               >
                 <Download className="w-4 h-4 mr-1.5" />
                 导出TXT
+              </button>
+            )}
+            {env && activeConfig && (
+              <button
+                onClick={()=>{ setBumpVersion(incPatch(String(activeConfig.version))); setShowBumpModal(true) }}
+                className="flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-sm"
+              >
+                应用新版本号
               </button>
             )}
             <button 
@@ -233,14 +250,15 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">配置值 (Value)</label>
                     <textarea 
-                        className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm"
-                        rows={5}
-                        value={editForm.value}
-                        onChange={e => setEditForm({...editForm, value: e.target.value})}
-                        placeholder="输入值..."
+                      className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm"
+                      rows={5}
+                      value={editForm.value}
+                      onChange={e => setEditForm({...editForm, value: e.target.value})}
+                      placeholder="输入值..."
                     />
-                    <p className="text-xs text-gray-500 mt-1">支持字符串、数字、布尔值及 JSON 对象。</p>
+                    <p className="text-xs text-gray-500 mt-1">仅支持字符串值。</p>
                 </div>
+                {/* Version input removed - auto calculated */}
                 <div className="flex justify-end gap-3 pt-2">
                     <button onClick={() => setShowEditModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">取消</button>
                     <button 
@@ -270,19 +288,87 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
                   value={importText}
                   onChange={e => setImportText(e.target.value)}
                 />
+                <div className="mt-2">
+                     <div className="p-3 bg-gray-50 text-gray-600 rounded-lg text-sm border border-gray-200">
+                        <span className="font-medium">提示：</span> 
+                        导入后版本号将自动递增为 <span className="font-mono font-bold text-gray-800">v{activeConfig ? incPatch(String(activeConfig.version)) : '0.0.1'}</span>
+                     </div>
+                </div>
                 <div className="flex justify-end gap-3 pt-2">
                   <button onClick={() => setShowImportModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">取消</button>
                   <button 
                     onClick={async () => {
                       if (!importText.trim()) return
-                      await importConfigText({ service_code: serviceCode, env, text: importText, overwrite: true, updated_by: 'admin' })
+                      
+                      // Auto calculate version for import
+                      const nextVer = activeConfig ? incPatch(String(activeConfig.version)) : '0.0.1'
+
+                      await importConfigText({ 
+                        service_code: serviceCode, 
+                        env, 
+                        text: importText, 
+                        overwrite: true, 
+                        updated_by: 'admin', 
+                        base_version: activeConfig ? String(activeConfig.version) : undefined,
+                        new_version: nextVer 
+                      })
                       setShowImportModal(false)
                       setImportText('')
+                      setImportVersion('')
                       listQ.refetch()
                     }}
-                    className="bg-blue-600 text白 px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                   >
                     导入并覆盖
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 应用新版本号弹窗：复制当前内容到新版本 */}
+        {showBumpModal && activeConfig && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-900">应用新版本号</h3>
+                <button onClick={() => setShowBumpModal(false)} className="text-gray-500 hover:text-gray-700"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-2 items-center">
+                  <label className="text-sm text-gray-700">当前版本</label>
+                  <input className="col-span-2 border border-gray-300 px-3 py-2 rounded-lg bg-gray-100" value={String(activeConfig.version)} disabled />
+                </div>
+                <div className="grid grid-cols-3 gap-2 items-center">
+                  <label className="text-sm text-gray-700">新版本</label>
+                  <input 
+                    className="col-span-2 border border-gray-300 px-3 py-2 rounded-lg"
+                    value={bumpVersion}
+                    onChange={e=>setBumpVersion(e.target.value)}
+                    placeholder={`建议: ${incPatch(String(activeConfig.version))}`}
+                  />
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button onClick={() => setShowBumpModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">取消</button>
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await updateConfig(activeConfig.id, {
+                          content: String(activeConfig.content),
+                          base_version: String(activeConfig.version),
+                          version: bumpVersion,
+                          updated_by: 'admin'
+                        })
+                        setShowBumpModal(false)
+                        listQ.refetch()
+                      } catch (e:any) {
+                        alert('应用新版本失败: ' + (e?.message || e))
+                      }
+                    }}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                  >
+                    应用
                   </button>
                 </div>
               </div>

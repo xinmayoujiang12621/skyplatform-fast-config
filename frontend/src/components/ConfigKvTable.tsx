@@ -3,7 +3,6 @@ import { Trash2, Plus } from 'lucide-react'
 export interface KvRow {
   key: string
   value: string
-  type: string
 }
 
 interface ConfigKvTableProps {
@@ -19,8 +18,7 @@ export default function ConfigKvTable({ rows, setRows }: ConfigKvTableProps) {
           <tr>
             <th className="px-4 py-2 text-left font-medium text-gray-500 w-1/3">Key</th>
             <th className="px-4 py-2 text-left font-medium text-gray-500 w-1/3">Value</th>
-            <th className="px-4 py-2 text-left font-medium text-gray-500 w-1/6">Type</th>
-            <th className="px-4 py-2 text-center font-medium text-gray-500 w-1/6">Action</th>
+            <th className="px-4 py-2 text-center font-medium text-gray-500 w-1/3">Action</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -50,22 +48,6 @@ export default function ConfigKvTable({ rows, setRows }: ConfigKvTableProps) {
                   }}
                 />
               </td>
-              <td className="p-2">
-                <select 
-                  className="w-full border-gray-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white outline-none"
-                  value={row.type}
-                  onChange={e => {
-                    const newRows = [...rows]
-                    newRows[idx].type = e.target.value
-                    setRows(newRows)
-                  }}
-                >
-                  <option value="string">String</option>
-                  <option value="number">Number</option>
-                  <option value="boolean">Boolean</option>
-                  <option value="json">JSON</option>
-                </select>
-              </td>
               <td className="p-2 text-center">
                 <button 
                   onClick={() => {
@@ -74,7 +56,7 @@ export default function ConfigKvTable({ rows, setRows }: ConfigKvTableProps) {
                       setRows(newRows)
                     } else {
                       // Clear if only one row
-                      setRows([{key: '', value: '', type: 'string'}])
+                      setRows([{key: '', value: ''}])
                     }
                   }}
                   className="text-gray-400 hover:text-red-600 p-1 rounded transition-colors"
@@ -88,7 +70,7 @@ export default function ConfigKvTable({ rows, setRows }: ConfigKvTableProps) {
       </table>
       <div className="bg-gray-50 p-2 border-t border-gray-200 flex justify-center">
         <button 
-          onClick={() => setRows([...rows, {key: '', value: '', type: 'string'}])}
+          onClick={() => setRows([...rows, {key: '', value: ''}])}
           className="flex items-center text-sm text-blue-600 hover:text-blue-700 font-medium px-3 py-1 rounded hover:bg-blue-50 transition-colors"
         >
           <Plus className="w-4 h-4 mr-1" />

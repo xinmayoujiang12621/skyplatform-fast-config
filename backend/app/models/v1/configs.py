@@ -13,7 +13,7 @@ class Config(Base):
     format = Column(Enum("json", "yaml", "toml", "ini"), nullable=False)
     content = Column(LONGTEXT, nullable=False)
     schema_def = Column(LONGTEXT)
-    version = Column(BigInteger, nullable=False, default=1)
+    version = Column(String(32), nullable=False, default="0.0.1")
     is_published = Column(Boolean, nullable=False, default=False)
     updated_by = Column(String(128))
     updated_at = Column(TIMESTAMP, nullable=False, default=func.now(), onupdate=func.now())
@@ -25,7 +25,7 @@ class ConfigVersion(Base):
     __tablename__ = "config_versions"
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     config_id = Column(BigInteger, ForeignKey("configs.id"), nullable=False)
-    version = Column(BigInteger, nullable=False)
+    version = Column(String(32), nullable=False)
     content = Column(LONGTEXT, nullable=False)
     summary = Column(String(256))
     created_by = Column(String(128))

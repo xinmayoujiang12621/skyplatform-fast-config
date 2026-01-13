@@ -2,8 +2,10 @@ import jwt
 from fastapi import HTTPException, status
 from models.v1.services import Service, ServiceCredential, ServiceToken
 from sqlalchemy.orm import Session
+
+from settings import settings
 from utils.crypto import decrypt_sk
-from config import JWT_CLOCK_SKEW
+
 
 
 def verify_bearer(token: str, db: Session, service_code: str, env: str):
@@ -29,7 +31,7 @@ def verify_bearer(token: str, db: Session, service_code: str, env: str):
     sk = decrypt_sk(bytes(cred.sk_ciphertext))
     try:
         payload = jwt.decode(token, sk, algorithms=["HS256"], options={"require": ["exp", "iat", "aud", "sub"]},
-                             leeway=JWT_CLOCK_SKEW, audience="fast_config_pull")
+                             leeway=int(settings.JWT_CLOCK_SKEW), audience="fast_config_pull")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"invalid token: {str(e)}")
     if payload.get("sub") != service_code:

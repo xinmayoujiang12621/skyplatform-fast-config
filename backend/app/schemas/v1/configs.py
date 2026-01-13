@@ -9,12 +9,14 @@ class ConfigCreate(BaseModel):
     format: Literal["json"]
     content: str
     schema_def: Optional[str] = None
+    version: str
 
 
 class ConfigUpdate(BaseModel):
     content: str
     schema_def: Optional[str] = None
-    version: int
+    base_version: str
+    version: str
     updated_by: Optional[str] = None
 
 
@@ -25,7 +27,7 @@ class ConfigOut(BaseModel):
     format: Literal["json"]
     content: str
     schema_def: Optional[str]
-    version: int
+    version: str
     updated_by: Optional[str]
     updated_at: datetime | None = None
 
@@ -34,14 +36,15 @@ class ConfigOut(BaseModel):
 
 
 class ConfigVersionOut(BaseModel):
-    version: int
+    version: str
     summary: Optional[str]
     created_by: Optional[str]
     created_at: datetime
 
 
 class RollbackReq(BaseModel):
-    version: int
+    version: str
+    new_version: str
     summary: Optional[str] = None
 
 
@@ -50,4 +53,6 @@ class ImportTextReq(BaseModel):
     env: str
     text: str
     overwrite: bool = True
+    base_version: Optional[str] = None
+    new_version: str
     updated_by: Optional[str] = None
