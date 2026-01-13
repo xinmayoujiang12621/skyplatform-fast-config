@@ -37,12 +37,18 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
   // 解析出的 KV 列表
   const [kvList, setKvList] = useState<KvItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
 
   const filteredKvList = useMemo(() => {
     if (!searchQuery) return kvList
     const q = searchQuery.toLowerCase()
     return kvList.filter(item => item.key.toLowerCase().includes(q))
   }, [kvList, searchQuery])
+
+  // 当配置切换或搜索改变时，不需要重置选中项，但在配置切换（activeConfig 变化）时应该重置
+  useEffect(() => {
+    setSelectedKeys(new Set())
+  }, [activeConfig?.id])
 
   useEffect(() => {
     if (activeConfig) {
@@ -104,6 +110,8 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
   // 应用新版本号弹窗
   const [showBumpModal, setShowBumpModal] = useState(false)
   const [bumpVersion, setBumpVersion] = useState('')
+  // 批量删除确认弹窗
+  const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false)
 
   // 导出为 .txt (KEY=VALUE 每行)
   const handleExportTxt = () => {
@@ -140,6 +148,47 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
     
     updateMutation.mutate({ content: currentObj, version: ver })
   }
+
+  // 打开批量删除确认框
+  const handleBatchDelete = () => {
+    if (selectedKeys.size === 0) return
+    setShowBatchDeleteModal(true)
+  }
+
+  // 执行批量删除
+  const confirmBatchDelete = () => {
+    // Auto bump version
+    const ver = activeConfig ? incPatch(String(activeConfig.version)) : '0.0.1'
+
+    const currentObj: Record<string, string> = {}
+    kvList.forEach(item => {
+        if (!selectedKeys.has(item.key)) {
+            currentObj[item.key] = item.value
+        }
+    })
+    
+    updateMutation.mutate({ content: currentObj, version: ver })
+    setShowBatchDeleteModal(false)
+    setSelectedKeys(new Set())
+  }
+
+  // 处理全选/反选
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+        // 全选当前过滤后的列表
+        const newSelected = new Set(selectedKeys)
+        filteredKvList.forEach(item => newSelected.add(item.key))
+        setSelectedKeys(newSelected)
+    } else {
+        // 取消全选当前过滤后的列表
+        const newSelected = new Set(selectedKeys)
+        filteredKvList.forEach(item => newSelected.delete(item.key))
+        setSelectedKeys(newSelected)
+    }
+  }
+
+  const isAllSelected = filteredKvList.length > 0 && filteredKvList.every(item => selectedKeys.has(item.key))
+  const isIndeterminate = filteredKvList.some(item => selectedKeys.has(item.key)) && !isAllSelected
 
   // 处理保存（新增或修改）
   const handleSave = () => {
@@ -200,6 +249,15 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
                 onChange={e => setSearchQuery(e.target.value)}
               />
             </div>
+            {selectedKeys.size > 0 && (
+                <button 
+                    onClick={handleBatchDelete}
+                    className="flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-red-600 text-white hover:bg-red-700 shadow-sm animate-in fade-in zoom-in duration-200"
+                >
+                    <Trash2 className="w-4 h-4 mr-1.5" />
+                    批量删除 ({selectedKeys.size})
+                </button>
+            )}
             {env && (
                 <button 
                     onClick={openAdd}
@@ -393,10 +451,68 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
           </div>
         )}
 
+        {/* 批量删除确认弹窗 */}
+        {showBatchDeleteModal && activeConfig && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative">
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2 text-red-600">
+                  <div className="bg-red-100 p-2 rounded-full">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900">批量删除确认</h3>
+                </div>
+                <button onClick={() => setShowBatchDeleteModal(false)} className="text-gray-500 hover:text-gray-700"><X className="w-5 h-5" /></button>
+              </div>
+              
+              <div className="space-y-4">
+                <p className="text-gray-600">
+                  您确定要删除选中的 <span className="font-bold text-red-600">{selectedKeys.size}</span> 个配置项吗？此操作无法撤销。
+                </p>
+                
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 max-h-40 overflow-y-auto">
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    {Array.from(selectedKeys).map(key => (
+                      <li key={key} className="flex items-center">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-400 mr-2"></span>
+                        <span className="font-mono truncate">{key}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="p-3 bg-blue-50 text-blue-800 rounded-lg text-sm border border-blue-100">
+                    <span className="font-medium">提示：</span> 
+                    删除后版本号将自动递增为 <span className="font-mono font-bold">v{incPatch(String(activeConfig.version))}</span>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button onClick={() => setShowBatchDeleteModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium">取消</button>
+                  <button 
+                    onClick={confirmBatchDelete}
+                    className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 font-medium shadow-sm"
+                  >
+                    确认删除
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-hidden border rounded-lg min-h-[200px]">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr className="text-left text-gray-600">
+                <th className="p-3 w-10 text-center">
+                    <input 
+                        type="checkbox" 
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        checked={isAllSelected}
+                        ref={input => { if (input) input.indeterminate = isIndeterminate }}
+                        onChange={handleSelectAll}
+                    />
+                </th>
                 <th className="p-3 font-medium w-1/3">配置名称</th>
                 <th className="p-3 font-medium w-1/3">配置值</th>
                 <th className="p-3 font-medium w-1/3 text-right">操作</th>
@@ -404,7 +520,23 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
             </thead>
             <tbody className="divide-y divide-gray-100">
               {env && activeConfig && filteredKvList.map((item) => (
-                <tr key={item.key} className="hover:bg-gray-50/50 transition-colors group">
+                <tr key={item.key} className={`hover:bg-gray-50/50 transition-colors group ${selectedKeys.has(item.key) ? 'bg-blue-50/30' : ''}`}>
+                  <td className="p-3 text-center">
+                    <input 
+                        type="checkbox" 
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        checked={selectedKeys.has(item.key)}
+                        onChange={(e) => {
+                            const newSelected = new Set(selectedKeys)
+                            if (e.target.checked) {
+                                newSelected.add(item.key)
+                            } else {
+                                newSelected.delete(item.key)
+                            }
+                            setSelectedKeys(newSelected)
+                        }}
+                    />
+                  </td>
                   <td className="p-3 font-mono text-gray-700 select-all">{item.key}</td>
                   <td className="p-3 font-mono text-gray-600 break-all">
                     {typeof item.value === 'object' 
@@ -436,7 +568,7 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
               {/* 空状态处理 */}
               {!env && (
                 <tr>
-                    <td colSpan={3} className="p-12 text-center text-gray-400">
+                    <td colSpan={4} className="p-12 text-center text-gray-400">
                         请先选择一个环境以管理配置
                     </td>
                 </tr>
@@ -445,19 +577,6 @@ export default function ConfigsList({ serviceCode, env }: { serviceCode: string,
               {env && !activeConfig && !listQ.isLoading && (
                  /* Empty state */
                  null
-              )}
-
-              {env && activeConfig && kvList.length > 0 && filteredKvList.length === 0 && (
-                <tr>
-                    <td colSpan={3} className="p-8 text-center text-gray-400">
-                        未找到匹配 "{searchQuery}" 的配置项
-                    </td>
-                </tr>
-              )}
-
-              {env && activeConfig && kvList.length === 0 && (
-                /* Empty list state */
-                null
               )}
             </tbody>
           </table>
